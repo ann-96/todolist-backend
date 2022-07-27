@@ -14,6 +14,4 @@ COPY --from=builder /build/service-binary .
 RUN mkdir -p ./migrations
 COPY ./migrations/. ./migrations/
 
-EXPOSE 8080
-
 ENTRYPOINT [ "./service-binary" ]
