@@ -21,12 +21,11 @@ type Settings struct {
 }
 
 type postgresDB struct {
-	Settings
 	sql *sql.DB
 }
 
 func CreatePostgresDB(settings Settings) (*postgresDB, error) {
-	res := &postgresDB{Settings: settings}
+	res := &postgresDB{}
 	psqlconn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", settings.IP, settings.Port, settings.User, settings.Password, settings.Name)
 
 	db, err := sql.Open("postgres", psqlconn)
@@ -58,9 +57,10 @@ func (db *postgresDB) Migrate() error {
 }
 
 func (db *postgresDB) Update(input *models.Todo) (*models.Todo, error) {
-	updateStmt := "UPDATE todos SET task=$1, completed=$2 WHERE id=$3;"
-	_, err := db.sql.Exec(updateStmt, input.Text, input.Completed, input.Id)
-	if err != nil {
+	updateStmt := "UPDATE todos SET task=$1, completed=$2 WHERE id=$3 RETURNING id;"
+	row := db.sql.QueryRow(updateStmt, input.Text, input.Completed, input.Id)
+	var id int
+	if err := row.Scan(&id); err != nil {
 		return nil, err
 	}
 
