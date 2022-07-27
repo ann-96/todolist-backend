@@ -23,6 +23,10 @@ type Validator struct {
 	validator *validator.Validate
 }
 
+type errResponse struct {
+	Msg string `json:"msg"`
+}
+
 func (cv *Validator) Validate(i interface{}) error {
 	if err := cv.validator.Struct(i); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -88,15 +92,15 @@ func (controller *todoController) Logger() echo.Logger {
 func (controller *todoController) Add(c echo.Context) error {
 	req := &models.AddTodoRequest{}
 	if err := c.Bind(req); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
 	}
 	if err := c.Validate(req); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
 	}
 
 	res, err := controller.db.Add(req)
 	if err != nil {
-		return err
+		return c.JSON(http.StatusInternalServerError, &errResponse{Msg: err.Error()})
 	}
 
 	return c.JSON(http.StatusOK, res)
@@ -105,15 +109,15 @@ func (controller *todoController) Add(c echo.Context) error {
 func (controller *todoController) Update(c echo.Context) error {
 	req := &models.Todo{}
 	if err := c.Bind(req); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
 	}
 	if err := c.Validate(req); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
 	}
 
 	res, err := controller.db.Update(req)
 	if err != nil {
-		return err
+		return c.JSON(http.StatusNotFound, &errResponse{Msg: err.Error()})
 	}
 
 	return c.JSON(http.StatusOK, res)
@@ -123,7 +127,7 @@ func (controller *todoController) List(c echo.Context) error {
 
 	res, err := controller.db.List()
 	if err != nil {
-		return err
+		return c.JSON(http.StatusInternalServerError, &errResponse{Msg: err.Error()})
 	}
 
 	return c.JSON(http.StatusOK, res)
@@ -134,15 +138,15 @@ func (controller *todoController) Delete(c echo.Context) error {
 		Id int `json:"id" binding:"validate"`
 	}{}
 	if err := c.Bind(req); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
 	}
 	if err := c.Validate(req); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
 	}
 
 	err := controller.db.Delete(req.Id)
 	if err != nil {
-		return err
+		return c.JSON(http.StatusNotFound, &errResponse{Msg: err.Error()})
 	}
 
 	return c.JSON(http.StatusOK, nil)
