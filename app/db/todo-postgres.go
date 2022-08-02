@@ -67,14 +67,24 @@ func (db *postgresDB) Update(input *models.Todo) (*models.Todo, error) {
 	return input, nil
 }
 
-func (db *postgresDB) List() (*models.TodoList, error) { // TODO: pagination(both on front and back end)
-	rows, err := db.sql.Query("SELECT id, task, completed FROM todos;")
+func (db *postgresDB) List(start int, count int) (*models.TodoList, error) {
+	stm := `
+		SELECT id, task, completed FROM todos 
+		ORDER BY id ASC 
+		LIMIT $1 
+		OFFSET $2;
+		`
+	stmt, err := db.sql.Prepare(stm)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := stmt.Query(count, start)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	list := models.TodoList{}
+	list := []models.Todo{}
 	for rows.Next() {
 		var id int
 		var text string
@@ -94,7 +104,23 @@ func (db *postgresDB) List() (*models.TodoList, error) { // TODO: pagination(bot
 		list = append(list, todo)
 	}
 
-	return &list, nil
+	row := db.sql.QueryRow("SELECT COUNT(*) FROM todos;")
+	var totalCount int
+	if err := row.Scan(&totalCount); err != nil {
+		return nil, err
+	}
+
+	row = db.sql.QueryRow("SELECT COUNT(*) FROM todos WHERE completed = true;")
+	var completedCount int
+	if err := row.Scan(&completedCount); err != nil {
+		return nil, err
+	}
+
+	return &models.TodoList{
+		List:           list,
+		Count:          totalCount,
+		CompletedCount: completedCount,
+	}, nil
 }
 
 func (db *postgresDB) Add(input *models.AddTodoRequest) (*models.Todo, error) {

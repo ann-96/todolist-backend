@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-playground/validator"
 
@@ -125,7 +126,20 @@ func (controller *todoController) Update(c echo.Context) error {
 
 func (controller *todoController) List(c echo.Context) error {
 
-	res, err := controller.db.List()
+	req := &models.ListRequest{}
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
+	}
+	startVal, err := strconv.Atoi(req.Start)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
+	}
+	countVal, err := strconv.Atoi(req.Count)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, &errResponse{Msg: err.Error()})
+	}
+
+	res, err := controller.db.List(startVal, countVal)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, &errResponse{Msg: err.Error()})
 	}

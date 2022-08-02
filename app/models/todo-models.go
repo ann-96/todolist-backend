@@ -10,4 +10,8 @@ type Todo struct {
 	Id int `json:"id" validate:"required"`
 }
 
-type TodoList []Todo
+type TodoList struct {
+	List           []Todo `json:"list" validate:"required"`
+	Count          int    `json:"count" validate:"required"`
+	CompletedCount int    `json:"completedCount" validate:"required"`
+}
