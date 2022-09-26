@@ -1,5 +1,5 @@
 CREATE TABLE todos (
-    id        SERIAL  PRIMARY KEY,
-    task      TEXT    NOT NULL,
-    completed BOOLEAN NOT NULL
+  id        SERIAL  PRIMARY KEY,
+  task      TEXT    NOT NULL,
+  completed BOOLEAN NOT NULL
 );
