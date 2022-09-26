@@ -1,23 +1,29 @@
 version: '3'
 
 services:
-  todos-api:
-    container_name: todos-api
-    restart: always
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      HTTP_HOST: todos-api
-      HTTP_PORT: 8080
-      SQL_HOST: todos-api-db
-      SQL_PORT: 5432
-      SQL_USER: postgres
-      SQL_PASS: postgres
-      SQL_DBNAME: postgres
-    depends_on: 
-      todos-api-db:
-        condition: service_healthy
+  # todos-api:
+  #   container_name: todos-api
+  #   restart: always
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #     - "9080:9080"
+  #   environment:
+  #     TODO_HTTP_HOST: todos-api
+  #     TODO_HTTP_PORT: 8080
+  #     USER_HTTP_PORT: 9080
+  #     USER_HTTP_HOST: todos-api
+  #     SQL_HOST: todos-api-db
+  #     SQL_PORT: 5432
+  #     SQL_USER: postgres
+  #     SQL_PASS: postgres
+  #     SQL_DBNAME: postgres
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+
+  #   depends_on: 
+  #     todos-api-db:
+  #       condition: service_healthy
 
   todos-api-db:
     image: postgres:14.1-alpine
@@ -32,3 +38,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
+
+  redis:
+    container_name: redis
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+      

@@ -15,3 +15,8 @@ type TodoList struct {
 	Count          int    `json:"count" validate:"required"`
 	CompletedCount int    `json:"completedCount" validate:"required"`
 }
+
+type ListRequest struct {
+	Start string `json:"start" form:"start" query:"start"`
+	Count string `json:"count" form:"count" query:"count"`
+}
