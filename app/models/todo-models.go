@@ -1,7 +1,7 @@
 package models
 
 type AddTodoRequest struct {
-	Text      *string `json:"text" validate:"required"`
+	Text      *string `json:"text" validate:"required,gte=3,lte=1000"`
 	Completed *bool   `json:"completed" validate:"required"`
 }
 

@@ -1,10 +1,9 @@
 package tools
 
 import (
-	"net/http"
+	"errors"
 
 	"github.com/go-playground/validator"
-	echo "github.com/labstack/echo/v4"
 )
 
 type Validator struct {
@@ -13,7 +12,16 @@ type Validator struct {
 
 func (cv *Validator) Validate(i interface{}) error {
 	if err := cv.Validator.Struct(i); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		switch err.Error() {
+		case "Key: 'RegisterRequest.LoginRequest.Login' Error:Field validation for 'Login' failed on the 'lte' tag":
+			return errors.New("login is too long")
+		case "Key: 'RegisterRequest.LoginRequest.Login' Error:Field validation for 'Login' failed on the 'gte' tag":
+			return errors.New("login is too short")
+		case "Key: 'RegisterRequest.LoginRequest.Login' Error:Field validation for 'Login' failed on the 'alphanum' tag":
+			return errors.New("login should only contain letters and numbers")
+		default:
+			return err
+		}
 	}
 	return nil
 }
