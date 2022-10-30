@@ -170,6 +170,9 @@ func (db *postgresDB) Login(input *models.LoginRequest) (*int, error) {
 	row := db.sql.QueryRow(query, input.Login, db.hash(*input.Password))
 	var id int
 	if err := row.Scan(&id); err != nil {
+		if err == sql.ErrNoRows {
+			err = fmt.Errorf("user or password is invalid")
+		}
 		return nil, err
 	}
 

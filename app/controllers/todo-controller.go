@@ -21,9 +21,7 @@ type todoController struct {
 	userCache redis.SessionCache
 }
 
-func NewTodoController(settings Settings) (*todoController, error) {
-	redisString := fmt.Sprintf("%v:%v", settings.RedisHost, settings.RedisPort)
-	userCache := redis.NewSessionCache(redisString, context.Background())
+func NewTodoController(settings Settings, db db.TodoSqlDB, userCache redis.SessionCache) (*todoController, error) {
 	e := echo.New()
 	e.Validator = tools.NewValidator()
 
@@ -31,10 +29,10 @@ func NewTodoController(settings Settings) (*todoController, error) {
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, "auth"},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, "Authorization"},
 	}))
 	e.Use(middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
-		KeyLookup: "header:auth",
+		KeyLookup: "header:authorization",
 		Validator: func(key string, c echo.Context) (bool, error) {
 			res := userCache.GetSession(key)
 			if res == nil {
@@ -48,27 +46,9 @@ func NewTodoController(settings Settings) (*todoController, error) {
 	controller := &todoController{
 		Settings:  settings,
 		userCache: userCache,
+		db:        db,
+		e:         e,
 	}
-	db, err := db.CreatePostgresDB(
-		db.Settings{
-			IP:       settings.SqlHost,
-			Port:     settings.SqlPort,
-			User:     settings.SqlUser,
-			Password: settings.SqlPass,
-			Name:     settings.SqlName,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.Migrate()
-	if err != nil {
-		return nil, err
-	}
-
-	controller.db = db
-	controller.e = e
 
 	controller.e.POST("/todo/add", controller.Add)
 	controller.e.POST("/todo/update", controller.Update)
@@ -107,7 +87,7 @@ func (controller *todoController) Add(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, &models.ErrResponse{Msg: err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, res)
+	return c.JSON(http.StatusOK, *res)
 }
 
 func (controller *todoController) Update(c echo.Context) error {
@@ -172,4 +152,8 @@ func (controller *todoController) Delete(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, nil)
+}
+
+func (controller *todoController) NewContext(r *http.Request, w http.ResponseWriter) echo.Context {
+	return controller.e.NewContext(r, w)
 }

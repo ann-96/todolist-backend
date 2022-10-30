@@ -21,9 +21,7 @@ type userController struct {
 	userCache redis.SessionCache
 }
 
-func NewUserController(settings Settings) (*userController, error) {
-	redisString := fmt.Sprintf("%v:%v", settings.RedisHost, settings.RedisPort)
-	userCache := redis.NewSessionCache(redisString, context.Background())
+func NewUserController(settings Settings, db db.TodoSqlDB, userCache redis.SessionCache) (*userController, error) {
 
 	e := echo.New()
 	e.Validator = tools.NewValidator()
@@ -41,31 +39,13 @@ func NewUserController(settings Settings) (*userController, error) {
 	usercontroller := &userController{
 		Settings:  settings,
 		userCache: userCache,
+		db:        db,
+		e:         e,
 	}
-
-	udb, err := db.CreatePostgresDB(
-		db.Settings{
-			IP:       settings.SqlHost,
-			Port:     settings.SqlPort,
-			User:     settings.SqlUser,
-			Password: settings.SqlPass,
-			Name:     settings.SqlName,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = udb.Migrate()
-	if err != nil {
-		return nil, err
-	}
-
-	usercontroller.db = udb
-	usercontroller.e = e
 
 	usercontroller.e.POST("/users/register", usercontroller.Register)
 	usercontroller.e.POST("/users/login", usercontroller.Login)
+	usercontroller.e.POST("/users/logout", usercontroller.Logout)
 
 	return usercontroller, nil
 }
@@ -94,10 +74,13 @@ func (controller *userController) Register(c echo.Context) error {
 
 	err := controller.db.Register(req)
 	if err != nil {
+		if err.Error() == `pq: duplicate key value violates unique constraint "users_login_key"` {
+			return c.JSON(http.StatusConflict, &models.ErrResponse{Msg: "the user already exists"})
+		}
 		return c.JSON(http.StatusInternalServerError, &models.ErrResponse{Msg: err.Error()})
 	}
 
-	return c.JSON(http.StatusNoContent, nil)
+	return c.JSON(http.StatusCreated, nil)
 }
 
 func (controller *userController) Login(c echo.Context) error {
@@ -119,4 +102,15 @@ func (controller *userController) Login(c echo.Context) error {
 	controller.userCache.CreateSession(uuid, *userId)
 
 	return c.JSON(http.StatusOK, uuid)
+}
+
+func (controller *userController) Logout(c echo.Context) error {
+	if auth, ok := c.Request().Header["Authorization"]; ok && auth[0] != "" {
+		controller.userCache.DeleteSession(auth[0])
+	}
+	return c.JSON(http.StatusNoContent, nil)
+}
+
+func (controller *userController) NewContext(r *http.Request, w http.ResponseWriter) echo.Context {
+	return controller.e.NewContext(r, w)
 }
