@@ -19,6 +19,8 @@ func (cv *Validator) Validate(i interface{}) error {
 			return errors.New("login is too short")
 		case "Key: 'RegisterRequest.LoginRequest.Login' Error:Field validation for 'Login' failed on the 'alphanum' tag":
 			return errors.New("login should only contain letters and numbers")
+		case "Key: 'RegisterRequest.LoginRequest.Password' Error:Field validation for 'Password' failed on the 'lte' tag":
+			return errors.New("password is too long")
 		default:
 			return err
 		}
