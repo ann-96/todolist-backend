@@ -22,7 +22,7 @@ func TestRegisterAndLogin(t *testing.T) {
 	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
 	require.NoError(t, err)
 
-	login, passw := "useruser", "somepassw"
+	login, passw := "useruser", "Somepassw@1"
 	registerReq := models.RegisterRequest{
 		LoginRequest: models.LoginRequest{
 			Login:    &login,
@@ -80,7 +80,46 @@ func TestLoginLength(t *testing.T) {
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "cannot unmarshal the response into error response")
 	require.Equal(t, "login is too short", errResp.Msg)
+}
 
+func TestRegisterPasswordLength(t *testing.T) {
+	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	require.NoError(t, err)
+
+	login := "validuser"
+	tooShortPassword := "abc"
+	tooLongPassword := getRandomString(121)
+
+	// Test password that is too short
+	registerReq := models.RegisterRequest{
+		LoginRequest: models.LoginRequest{
+			Login:    &login,
+			Password: &tooShortPassword,
+		},
+		Password2: &tooShortPassword,
+	}
+	c, rec := getRequestContext(t, http.MethodPost, registerReq, h.NewContext)
+	require.NoError(t, h.Register(c))
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	errResp := models.ErrResponse{}
+	body := rec.Body.Bytes()
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "cannot unmarshal the response into error response")
+	require.Equal(t, "insecure password, try including more special characters, using uppercase letters, using numbers or using a longer password", errResp.Msg)
+
+	// Test password that is too long
+	registerReq.Password = &tooLongPassword
+	registerReq.Password2 = &tooLongPassword
+	c, rec = getRequestContext(t, http.MethodPost, registerReq, h.NewContext)
+	require.NoError(t, h.Register(c))
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	errResp = models.ErrResponse{}
+	body = rec.Body.Bytes()
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "cannot unmarshal the response into error response")
+	require.Equal(t, "password is too long", errResp.Msg)
 }
 
 func TestRegisterLoginAlphanum(t *testing.T) {
@@ -88,8 +127,8 @@ func TestRegisterLoginAlphanum(t *testing.T) {
 	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
 	require.NoError(t, err)
 
-	login := "asdfasdf@"
-	passw := "Passwd@1"
+	login := "asdfasdf1@"
+	passw := "Passwd1@"
 
 	registerReq := models.RegisterRequest{
 		LoginRequest: models.LoginRequest{
@@ -111,6 +150,76 @@ func TestRegisterLoginAlphanum(t *testing.T) {
 
 }
 
+func TestUpdateTodos(t *testing.T) {
+	mockSQL, mockSessionCache := getMockSQL(), getSessionCache()
+
+	userController, err := controllers.NewUserController(controllers.Settings{}, mockSQL, mockSessionCache)
+	require.NoError(t, err)
+	todoController, err := controllers.NewTodoController(controllers.Settings{}, mockSQL, mockSessionCache)
+	require.NoError(t, err)
+
+	login := "loginlogin"
+	passw := "Passwd@jwklfnjknfkj1"
+
+	registerReq := models.RegisterRequest{
+		LoginRequest: models.LoginRequest{
+			Login:    &login,
+			Password: &passw,
+		},
+		Password2: &passw,
+	}
+
+	todoText := getRandomString(200)
+	todoCompleted := true
+
+	addTodo := models.AddTodoRequest{
+		Text:      &todoText,
+		Completed: &todoCompleted,
+	}
+
+	newTodoText := getRandomString(300)
+	newTodoCompleted := true
+
+	c, rec := getRequestContext(t, http.MethodPost, registerReq, userController.NewContext)
+	require.NoError(t, userController.Register(c))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	c, rec = getRequestContext(t, http.MethodPost, registerReq.LoginRequest, userController.NewContext)
+	require.NoError(t, userController.Login(c))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &UUID))
+
+	c, rec = getRequestContext(t, http.MethodPost, addTodo, userController.NewContext)
+	userId := mockSessionCache.GetSession(UUID.String())
+	c.Set("userId", *userId)
+
+	require.NoError(t, todoController.Add(c))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	resultTodo := models.Todo{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resultTodo))
+	require.Equal(t, addTodo, resultTodo.AddTodoRequest)
+
+	updateTodo := models.Todo{
+		Id: resultTodo.Id,
+		AddTodoRequest: models.AddTodoRequest{
+			Text:      &newTodoText,
+			Completed: &newTodoCompleted,
+		},
+	}
+	c, rec = getRequestContext(t, http.MethodPost, updateTodo, userController.NewContext)
+	userId = mockSessionCache.GetSession(UUID.String())
+	c.Set("userId", *userId)
+
+	require.NoError(t, todoController.Update(c))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	resTodo := models.Todo{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resTodo))
+	require.Equal(t, updateTodo, resTodo)
+}
+
 func TestTodos(t *testing.T) {
 	// controllers
 	mockSQL, mockSessionCache := getMockSQL(), getSessionCache()
@@ -123,7 +232,7 @@ func TestTodos(t *testing.T) {
 
 	// requests
 	login := "loginlogin"
-	passw := "Passwd@1"
+	passw := "Passwd@jwklfnjknfkj1"
 
 	registerReq := models.RegisterRequest{
 		LoginRequest: models.LoginRequest{
@@ -167,6 +276,95 @@ func TestTodos(t *testing.T) {
 	require.Equal(t, addTodo, resultTodo.AddTodoRequest)
 }
 
+func TestRasswordComplexity(t *testing.T) {
+	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	require.NoError(t, err)
+
+	login := "loginlogin"
+	passw := "password"
+
+	registerReq := models.RegisterRequest{
+		LoginRequest: models.LoginRequest{
+			Login:    &login,
+			Password: &passw,
+		},
+		Password2: &passw,
+	}
+
+	c, rec := getRequestContext(t, http.MethodPost, registerReq, h.NewContext)
+	require.NoError(t, h.Register(c))
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	errResp := models.ErrResponse{}
+	body := rec.Body.Bytes()
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "cannot unmarshal the response into error response")
+	require.Equal(t, "insecure password, try including more special characters, using uppercase letters, using numbers or using a longer password", errResp.Msg)
+
+}
+
+func TestRasswordMatch(t *testing.T) {
+	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	require.NoError(t, err)
+
+	login := "loginloginlogin"
+	passw := "password333222@@@password"
+	passwtwo := "ppassword333222@@@password"
+
+	registerReq := models.RegisterRequest{
+		LoginRequest: models.LoginRequest{
+			Login:    &login,
+			Password: &passw,
+		},
+		Password2: &passwtwo,
+	}
+	c, rec := getRequestContext(t, http.MethodPost, registerReq, h.NewContext)
+	require.NoError(t, h.Register(c))
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	errResp := models.ErrResponse{}
+	body := rec.Body.Bytes()
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "cannot unmarshal the response into error response")
+	require.Equal(t, "Entered passwords didn't match", errResp.Msg)
+
+}
+
+func TestLoginLetterCase(t *testing.T) {
+	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	require.NoError(t, err)
+
+	login := "loginlogin"
+	passw := "Passwd@jwklfnjknfkj1"
+
+	registerReq := models.RegisterRequest{
+		LoginRequest: models.LoginRequest{
+			Login:    &login,
+			Password: &passw,
+		},
+		Password2: &passw,
+	}
+
+	c, rec := getRequestContext(t, http.MethodPost, registerReq, h.NewContext)
+	require.NoError(t, h.Register(c))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	login = "lOginlogin"
+	c, rec = getRequestContext(t, http.MethodPost, registerReq, h.NewContext)
+	require.NoError(t, h.Register(c))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+
+	errResp := models.ErrResponse{}
+	body := rec.Body.Bytes()
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "cannot unmarshal the response into error response")
+	require.Equal(t, "the user already exists", errResp.Msg)
+
+	c, rec = getRequestContext(t, http.MethodPost, registerReq.LoginRequest, h.NewContext)
+	require.NoError(t, h.Login(c))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
 type userIdType int
 type todoIdType int
 type mockSqlDB struct {
@@ -177,18 +375,14 @@ type mockSqlDB struct {
 }
 
 var (
-	instance *mockSqlDB
-	UUID     uuid.UUID
+	UUID uuid.UUID
 )
 
 func getMockSQL() *mockSqlDB {
-	if instance == nil {
-		instance = &mockSqlDB{
-			todos: make(map[userIdType]map[todoIdType]*models.Todo),
-			users: make(map[userIdType]*models.LoginRequest),
-		}
+	return &mockSqlDB{
+		todos: make(map[userIdType]map[todoIdType]*models.Todo),
+		users: make(map[userIdType]*models.LoginRequest),
 	}
-	return instance
 }
 
 func (db *mockSqlDB) Update(input *models.Todo, userId int) (*models.Todo, error) {
@@ -197,7 +391,7 @@ func (db *mockSqlDB) Update(input *models.Todo, userId int) (*models.Todo, error
 		return nil, fmt.Errorf("the user id %v is not found", userId)
 	}
 
-	todo, ok := db.todos[userIdType(userId)][todoIdType(input.Id)]
+	todo, ok := db.todos[userIdType(userId)][todoIdType(*input.Id)]
 	if !ok {
 		return nil, errors.New("entry not found for the user")
 	}
@@ -251,8 +445,9 @@ func (db *mockSqlDB) Add(input *models.AddTodoRequest, userId int) (*models.Todo
 	if db.todos[userIdType(userId)] == nil {
 		db.todos[userIdType(userId)] = make(map[todoIdType]*models.Todo)
 	}
+	id := int(db.nextTodoID)
 	db.todos[userIdType(userId)][db.nextTodoID] = &models.Todo{
-		Id:             int(db.nextTodoID),
+		Id:             &id,
 		AddTodoRequest: *input,
 	}
 	defer func() { db.nextTodoID++ }()
@@ -274,7 +469,7 @@ func (db *mockSqlDB) Register(input *models.RegisterRequest) error {
 		}
 	}
 	if exists {
-		return fmt.Errorf("user already exists")
+		return fmt.Errorf(`pq: duplicate key value violates unique constraint "users_login_key"`)
 	}
 	db.users[db.nextUserID] = &input.LoginRequest
 	db.nextUserID++

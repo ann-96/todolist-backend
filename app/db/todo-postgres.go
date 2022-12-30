@@ -97,7 +97,7 @@ func (db *postgresDB) List(start int, count int, userId int) (*models.TodoList, 
 		}
 
 		todo := models.Todo{
-			Id: id,
+			Id: &id,
 			AddTodoRequest: models.AddTodoRequest{
 				Text:      &text,
 				Completed: &completed,

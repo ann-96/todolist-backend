@@ -7,7 +7,7 @@ type AddTodoRequest struct {
 
 type Todo struct {
 	AddTodoRequest
-	Id int `json:"id" validate:"required"`
+	Id *int `json:"id" validate:"required"`
 }
 
 type TodoList struct {
