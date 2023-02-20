@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/ann-96/todo-go-backend/app/controllers"
 	"github.com/ann-96/todo-go-backend/app/db"
-	"github.com/ann-96/todo-go-backend/app/redis"
 )
 
 type App struct {
@@ -44,12 +42,12 @@ func (app *App) Run() {
 }
 
 func (app *App) runTodoRest(wg *sync.WaitGroup, quit chan struct{}) {
-	db, userCache, err := getDBConnectionsFromSettings(&app.TodoController)
+	db, err := getDBConnectionsFromSettings(&app.TodoController)
 	if err != nil {
 		panic(err)
 	}
 
-	c, err := controllers.NewTodoController(app.TodoController, db, userCache)
+	c, err := controllers.NewTodoController(app.TodoController, db)
 	if err != nil {
 		panic(err)
 	}
@@ -78,12 +76,12 @@ func (app *App) runTodoRest(wg *sync.WaitGroup, quit chan struct{}) {
 }
 
 func (app *App) runUserRest(wg *sync.WaitGroup, quit chan struct{}) {
-	db, userCache, err := getDBConnectionsFromSettings(&app.UserController)
+	db, err := getDBConnectionsFromSettings(&app.UserController)
 	if err != nil {
 		panic(err)
 	}
 
-	c, err := controllers.NewUserController(app.UserController, db, userCache)
+	c, err := controllers.NewUserController(app.UserController, db)
 	if err != nil {
 		panic(err)
 	}
@@ -111,10 +109,7 @@ func (app *App) runUserRest(wg *sync.WaitGroup, quit chan struct{}) {
 	wg.Done()
 }
 
-func getDBConnectionsFromSettings(settings *controllers.Settings) (sql db.TodoSqlDB, userCache redis.SessionCache, err error) {
-	redisString := fmt.Sprintf("%v:%v", settings.RedisHost, settings.RedisPort)
-	userCache = redis.NewSessionCache(redisString, context.Background())
-
+func getDBConnectionsFromSettings(settings *controllers.Settings) (sql db.TodoSqlDB, err error) {
 	sql, err = db.CreatePostgresDB(
 		db.Settings{
 			IP:       settings.SqlHost,

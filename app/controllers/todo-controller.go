@@ -8,7 +8,6 @@ import (
 
 	"github.com/ann-96/todo-go-backend/app/db"
 	"github.com/ann-96/todo-go-backend/app/models"
-	"github.com/ann-96/todo-go-backend/app/redis"
 	"github.com/ann-96/todo-go-backend/app/tools"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -18,10 +17,9 @@ type todoController struct {
 	e  *echo.Echo
 	db db.TodoSqlDB
 	Settings
-	userCache redis.SessionCache
 }
 
-func NewTodoController(settings Settings, db db.TodoSqlDB, userCache redis.SessionCache) (*todoController, error) {
+func NewTodoController(settings Settings, db db.TodoSqlDB) (*todoController, error) {
 	e := echo.New()
 	e.Validator = tools.NewValidator()
 
@@ -33,21 +31,20 @@ func NewTodoController(settings Settings, db db.TodoSqlDB, userCache redis.Sessi
 	}))
 	e.Use(middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
 		KeyLookup: "header:authorization",
-		Validator: func(key string, c echo.Context) (bool, error) {
-			res := userCache.GetSession(key)
-			if res == nil {
-				return false, nil
+		Validator: func(input string, c echo.Context) (bool, error) {
+			userID, err := TokenToUserID(input, settings.JwtKey)
+			if err != nil {
+				return false, err
 			}
-			c.Set("userId", *res)
+			c.Set("userId", userID)
 			return true, nil
 		},
 	}))
 
 	controller := &todoController{
-		Settings:  settings,
-		userCache: userCache,
-		db:        db,
-		e:         e,
+		Settings: settings,
+		db:       db,
+		e:        e,
 	}
 
 	controller.e.POST("/todo/add", controller.Add)

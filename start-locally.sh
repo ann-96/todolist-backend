@@ -7,8 +7,7 @@ export SQL_PORT=5432
 export SQL_USER=postgres
 export SQL_PASS=postgres
 export SQL_DBNAME=postgres
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
+export JWT_KEY=my-secret-key-my-secret-key-my-secret-key
 
 go build -o service-binary
 ./service-binary

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ann-96/todo-go-backend/app/db"
 	"github.com/ann-96/todo-go-backend/app/models"
-	"github.com/ann-96/todo-go-backend/app/redis"
 	"github.com/ann-96/todo-go-backend/app/tools"
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -22,10 +23,9 @@ type userController struct {
 	e  *echo.Echo
 	db db.TodoSqlDB
 	Settings
-	userCache redis.SessionCache
 }
 
-func NewUserController(settings Settings, db db.TodoSqlDB, userCache redis.SessionCache) (*userController, error) {
+func NewUserController(settings Settings, db db.TodoSqlDB) (*userController, error) {
 
 	e := echo.New()
 	e.Validator = tools.NewValidator()
@@ -41,10 +41,10 @@ func NewUserController(settings Settings, db db.TodoSqlDB, userCache redis.Sessi
 	// }))
 
 	usercontroller := &userController{
-		Settings:  settings,
-		userCache: userCache,
-		db:        db,
-		e:         e,
+		Settings: settings,
+
+		db: db,
+		e:  e,
 	}
 
 	usercontroller.e.POST("/users/register", usercontroller.Register)
@@ -92,7 +92,7 @@ func (controller *userController) Register(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, &models.ErrResponse{Msg: err.Error()})
 	}
 
-	return c.JSON(http.StatusCreated, nil)
+	return c.NoContent(http.StatusCreated)
 }
 
 func (controller *userController) Login(c echo.Context) error {
@@ -111,20 +111,49 @@ func (controller *userController) Login(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, &models.ErrResponse{Msg: err.Error()})
 	}
 
-	id := uuid.New()
-	uuid := id.String()
-	controller.userCache.CreateSession(uuid, *userId)
+	expirationTime := time.Now().Add(30 * 24 * time.Hour)
+	claims := &models.Claims{
+		UserID: *userId,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+			Id:        uuid.New().String(),
+		},
+	}
 
-	return c.JSON(http.StatusOK, uuid)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(controller.Settings.JwtKey))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, tokenString)
 }
 
 func (controller *userController) Logout(c echo.Context) error {
-	if auth, ok := c.Request().Header["Authorization"]; ok && auth[0] != "" {
-		controller.userCache.DeleteSession(auth[0])
-	}
 	return c.JSON(http.StatusNoContent, nil)
 }
 
 func (controller *userController) NewContext(r *http.Request, w http.ResponseWriter) echo.Context {
 	return controller.e.NewContext(r, w)
+}
+
+func TokenToUserID(input, key string) (int, error) {
+	token, err := jwt.ParseWithClaims(input, &models.Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+
+		return []byte(key), nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+	claims, ok := token.Claims.(*models.Claims)
+	if ok && token.Valid {
+		if claims == nil {
+			return 0, fmt.Errorf("invalid token")
+		}
+		return claims.UserID, nil
+	}
+	return 0, fmt.Errorf("invalid token")
 }

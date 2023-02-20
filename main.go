@@ -18,23 +18,20 @@ func main() {
 	viper.SetDefault("SQL_USER", "postgres")
 	viper.SetDefault("SQL_PASS", "postgres")
 	viper.SetDefault("SQL_DBNAME", "postgres")
-	viper.SetDefault("REDIS_HOST", "redis")
-	viper.SetDefault("REDIS_PORT", "6379")
+	viper.SetDefault("JWT_KEY", "my-secret-key-my-secret-key-my-secret-key")
 
 	viper.BindEnv("SQL_HOST")
 	viper.BindEnv("SQL_PORT")
 	viper.BindEnv("SQL_USER")
 	viper.BindEnv("SQL_PASS")
 	viper.BindEnv("SQL_DBNAME")
-	viper.BindEnv("REDIS_HOST")
-	viper.BindEnv("REDIS_PORT")
+	viper.BindEnv("JWT_KEY")
 	commonSettings.SqlHost = viper.GetString("SQL_HOST")
 	commonSettings.SqlPort = viper.GetString("SQL_PORT")
 	commonSettings.SqlUser = viper.GetString("SQL_USER")
 	commonSettings.SqlPass = viper.GetString("SQL_PASS")
 	commonSettings.SqlName = viper.GetString("SQL_DBNAME")
-	commonSettings.RedisHost = viper.GetString("REDIS_HOST")
-	commonSettings.RedisPort = viper.GetString("REDIS_PORT")
+	commonSettings.JwtKey = viper.GetString("JWT_KEY")
 
 	app.UserController = commonSettings
 	app.TodoController = commonSettings
