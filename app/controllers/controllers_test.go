@@ -13,13 +13,14 @@ import (
 
 	"github.com/ann-96/todo-go-backend/app/controllers"
 	"github.com/ann-96/todo-go-backend/app/models"
-	"github.com/google/uuid"
 	echo "github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 )
 
+const secretKey = "my-secret-key-my-secret-key-my-secret-key"
+
 func TestRegisterAndLogin(t *testing.T) {
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	login, passw := "useruser", "Somepassw@1"
@@ -39,13 +40,13 @@ func TestRegisterAndLogin(t *testing.T) {
 	require.NoError(t, h.Login(c))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	err = json.Unmarshal(rec.Body.Bytes(), &UUID)
+	err = json.Unmarshal(rec.Body.Bytes(), &jwtToken)
 	require.NoError(t, err)
 }
 
 func TestLoginLength(t *testing.T) {
 
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	tooLongLogin := getRandomString(120)
@@ -83,7 +84,7 @@ func TestLoginLength(t *testing.T) {
 }
 
 func TestRegisterPasswordLength(t *testing.T) {
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	login := "validuser"
@@ -124,7 +125,7 @@ func TestRegisterPasswordLength(t *testing.T) {
 
 func TestRegisterLoginAlphanum(t *testing.T) {
 
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	login := "asdfasdf1@"
@@ -151,11 +152,11 @@ func TestRegisterLoginAlphanum(t *testing.T) {
 }
 
 func TestUpdateTodos(t *testing.T) {
-	mockSQL, mockSessionCache := getMockSQL(), getSessionCache()
+	mockSQL := getMockSQL()
 
-	userController, err := controllers.NewUserController(controllers.Settings{}, mockSQL, mockSessionCache)
+	userController, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, mockSQL)
 	require.NoError(t, err)
-	todoController, err := controllers.NewTodoController(controllers.Settings{}, mockSQL, mockSessionCache)
+	todoController, err := controllers.NewTodoController(controllers.Settings{JwtKey: secretKey}, mockSQL)
 	require.NoError(t, err)
 
 	login := "loginlogin"
@@ -188,11 +189,12 @@ func TestUpdateTodos(t *testing.T) {
 	require.NoError(t, userController.Login(c))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &UUID))
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &jwtToken))
 
 	c, rec = getRequestContext(t, http.MethodPost, addTodo, userController.NewContext)
-	userId := mockSessionCache.GetSession(UUID.String())
-	c.Set("userId", *userId)
+	userId, err := controllers.TokenToUserID(jwtToken, secretKey)
+	require.NoError(t, err)
+	c.Set("userId", userId)
 
 	require.NoError(t, todoController.Add(c))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -209,8 +211,9 @@ func TestUpdateTodos(t *testing.T) {
 		},
 	}
 	c, rec = getRequestContext(t, http.MethodPost, updateTodo, userController.NewContext)
-	userId = mockSessionCache.GetSession(UUID.String())
-	c.Set("userId", *userId)
+	userId, err = controllers.TokenToUserID(jwtToken, secretKey)
+	require.NoError(t, err)
+	c.Set("userId", userId)
 
 	require.NoError(t, todoController.Update(c))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -222,12 +225,12 @@ func TestUpdateTodos(t *testing.T) {
 
 func TestTodos(t *testing.T) {
 	// controllers
-	mockSQL, mockSessionCache := getMockSQL(), getSessionCache()
+	mockSQL := getMockSQL()
 
-	userController, err := controllers.NewUserController(controllers.Settings{}, mockSQL, mockSessionCache)
+	userController, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, mockSQL)
 	require.NoError(t, err)
 
-	todoController, err := controllers.NewTodoController(controllers.Settings{}, mockSQL, mockSessionCache)
+	todoController, err := controllers.NewTodoController(controllers.Settings{JwtKey: secretKey}, mockSQL)
 	require.NoError(t, err)
 
 	// requests
@@ -261,12 +264,13 @@ func TestTodos(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// save session id for future use
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &UUID))
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &jwtToken))
 
 	// create a todo entry
 	c, rec = getRequestContext(t, http.MethodPost, addTodo, userController.NewContext)
-	userId := mockSessionCache.GetSession(UUID.String())
-	c.Set("userId", *userId)
+	userId, err := controllers.TokenToUserID(jwtToken, secretKey)
+	require.NoError(t, err)
+	c.Set("userId", userId)
 
 	require.NoError(t, todoController.Add(c))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -277,7 +281,7 @@ func TestTodos(t *testing.T) {
 }
 
 func TestRasswordComplexity(t *testing.T) {
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	login := "loginlogin"
@@ -304,7 +308,7 @@ func TestRasswordComplexity(t *testing.T) {
 }
 
 func TestRasswordMatch(t *testing.T) {
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	login := "loginloginlogin"
@@ -331,7 +335,7 @@ func TestRasswordMatch(t *testing.T) {
 }
 
 func TestLoginLetterCase(t *testing.T) {
-	h, err := controllers.NewUserController(controllers.Settings{}, getMockSQL(), getSessionCache())
+	h, err := controllers.NewUserController(controllers.Settings{JwtKey: secretKey}, getMockSQL())
 	require.NoError(t, err)
 
 	login := "loginlogin"
@@ -375,7 +379,7 @@ type mockSqlDB struct {
 }
 
 var (
-	UUID uuid.UUID
+	jwtToken string
 )
 
 func getMockSQL() *mockSqlDB {
@@ -492,34 +496,6 @@ func (db *mockSqlDB) Migrate() error {
 	return nil
 }
 
-type mockSessionCache struct {
-	m map[string]*int
-}
-
-func getSessionCache() *mockSessionCache {
-	return &mockSessionCache{
-		m: make(map[string]*int),
-	}
-}
-
-func (r *mockSessionCache) GetSession(key string) *int {
-	res, ok := r.m[key]
-	if !ok {
-		return nil
-	}
-	return res
-}
-
-func (r *mockSessionCache) CreateSession(key string, id int) error {
-	r.m[key] = &id
-	return nil
-}
-
-func (r *mockSessionCache) DeleteSession(key string) error {
-	delete(r.m, key)
-	return nil
-}
-
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 
 func getRandomString(n int) string {
@@ -539,7 +515,7 @@ func getRequestContext(t require.TestingT, method string, in interface{}, newCon
 
 	req := httptest.NewRequest(method, "/", bytes.NewReader(reqJson))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	req.Header.Set(echo.HeaderAuthorization, UUID.String())
+	req.Header.Set(echo.HeaderAuthorization, jwtToken)
 
 	rec := httptest.NewRecorder()
 	require.NoError(t, err)

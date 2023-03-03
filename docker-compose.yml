@@ -18,9 +18,7 @@ services:
       SQL_USER: postgres
       SQL_PASS: postgres
       SQL_DBNAME: postgres
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-
+      JWT_KEY: my-secret-key-my-secret-key-my-secret-key
     depends_on: 
       todos-api-db:
         condition: service_healthy
@@ -38,10 +36,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
-
-  redis:
-    container_name: redis
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-      
